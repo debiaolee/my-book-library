@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>扫书入库</title>
+<style>
+:root{--bg:#0f0f14;--card:#1a1a24;--text:#eee;--t2:#888;--accent:#4da6ff;--green:#2ecc71;--red:#e74c3c;--safe:env(safe-area-inset-bottom,12px)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;-webkit-tap-highlight-color:transparent}
+/* Header */
+.hd{text-align:center;padding:16px;padding-top:max(16px,env(safe-area-inset-top));background:var(--card);flex-shrink:0;border-bottom:1px solid rgba(255,255,255,0.06)}
+.hd h1{font-size:18px;font-weight:600}
+/* Pages */
+.pg{flex:1;overflow-y:auto;display:none;padding:16px;padding-bottom:calc(80px + var(--safe))}
+.pg.on{display:block}
+/* ── SCAN PAGE ── */
+.scan-hero{text-align:center;padding:20px 0}
+.scan-hero .icon{font-size:64px;margin-bottom:12px}
+.scan-hero .tip{font-size:14px;color:var(--t2);line-height:1.6}
+/* Scanner viewport */
+.vp{position:relative;width:100%;max-width:340px;margin:0 auto 16px;aspect-ratio:4/3;background:#000;border-radius:16px;overflow:hidden;border:2px solid rgba(255,255,255,0.1)}
+.vp video,.vp canvas{width:100%;height:100%;object-fit:cover}
+.vp .frame{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:75%;height:40%;border:2px solid var(--accent);border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,0.5)}
+.vp .scan-line{position:absolute;top:30%;left:12.5%;width:75%;height:2px;background:var(--accent);animation:scanLine 2s ease-in-out infinite;opacity:0.8}
+@keyframes scanLine{0%,100%{top:30%}50%{top:70%}}
+.vp.hidden{display:none}
+/* Buttons */
+.btn{display:block;width:100%;padding:16px;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;text-align:center;transition:transform 0.1s,opacity 0.1s}
+.btn:active{transform:scale(0.97);opacity:0.9}
+.btn-scan{background:var(--accent);color:#fff;margin-bottom:12px}
+.btn-manual{background:var(--card);color:var(--text);border:1px solid rgba(255,255,255,0.1);margin-bottom:16px}
+.btn-save{background:var(--green);color:#fff}
+.btn-out{background:var(--card);color:var(--t2);border:1px solid rgba(255,255,255,0.06);font-size:13px;padding:12px}
+/* Manual input */
+.inp-row{display:flex;gap:8px;margin:12px 0}
+.inp-row input{flex:1;padding:14px 16px;background:var(--card);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--text);font-size:17px;outline:none;text-align:center;letter-spacing:1px}
+.inp-row input:focus{border-color:var(--accent)}
+.inp-row button{padding:14px 20px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap}
+/* Result card */
+.result{background:var(--card);border-radius:14px;padding:18px;margin-top:12px;display:none;animation:fadeUp 0.3s}
+.result.show{display:block}
+.result h3{font-size:17px;margin-bottom:6px;line-height:1.4}
+.result .meta{font-size:13px;color:var(--t2);margin-bottom:3px}
+.result .meta.isbn{font-size:11px;color:#555}
+.result .btns{margin-top:14px;display:flex;gap:8px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+/* Status */
+.status{text-align:center;padding:8px;font-size:14px;color:var(--t2);min-height:24px}
+/* Spinner */
+.spin{display:none;width:24px;height:24px;border:2px solid rgba(255,255,255,0.15);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin:12px auto}
+.spin.on{display:block}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* ── LIBRARY PAGE ── */
+.lib-search{margin-bottom:14px}
+.lib-search input{width:100%;padding:12px 16px;background:var(--card);border:1px solid rgba(255,255,255,0.08);border-radius:10px;color:var(--text);font-size:15px;outline:none}
+.lib-search input:focus{border-color:var(--accent)}
+.lib-count{font-size:13px;color:var(--t2);margin-bottom:8px}
+.book-item{display:flex;align-items:center;gap:12px;padding:12px;background:var(--card);border-radius:10px;margin-bottom:6px}
+.book-item .info{flex:1;min-width:0}
+.book-item .info .t{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.book-item .info .s{font-size:12px;color:var(--t2);margin-top:2px}
+.book-item .del{background:none;border:none;color:var(--red);font-size:18px;cursor:pointer;padding:8px}
+.empty{text-align:center;padding:60px 20px;color:var(--t2);display:none}
+.empty .ic{font-size:48px;margin-bottom:8px}
+/* Bottom nav */
+.nav{display:flex;background:var(--card);border-top:1px solid rgba(255,255,255,0.06);flex-shrink:0;padding-bottom:var(--safe)}
+.nav-item{flex:1;text-align:center;padding:10px 4px;cursor:pointer;font-size:11px;color:var(--t2);transition:color 0.15s}
+.nav-item.on{color:var(--accent)}
+.nav-item .ni{font-size:22px;display:block;margin-bottom:2px}
+/* Toast */
+.toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);padding:14px 24px;border-radius:10px;color:#fff;font-size:15px;z-index:999;display:none;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);white-space:nowrap}
+.toast.show{display:block;animation:toastIn 0.2s}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,-50%) scale(0.9)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+/* Permission prompt */
+.perm-msg{text-align:center;padding:20px;color:var(--t2);display:none}
+.perm-msg.show{display:block}
+</style>
+</head>
+<body>
+
+<div class="hd"><h1 id="pageTitle">📷 扫书入库</h1></div>
+
+<!-- ═══════ SCAN PAGE ═══════ -->
+<div class="pg on" id="scanPage">
+  <div class="vp" id="viewport">
+    <div class="frame"></div>
+    <div class="scan-line"></div>
+  </div>
+  <div class="perm-msg" id="permMsg">
+    <p style="font-size:15px;margin-bottom:8px">📷 需要相机权限</p>
+    <p style="font-size:13px;color:var(--t2)">请在浏览器设置中允许相机访问</p>
+    <button class="btn btn-out" onclick="startScanner()" style="margin-top:12px">重试</button>
+  </div>
+  <div class="spin" id="scanSpin"></div>
+  <div class="status" id="scanStatus">对准 ISBN 条码自动识别</div>
+  
+  <button class="btn btn-scan" id="btnStartScan" onclick="startScanner()">📷 开始扫码</button>
+  <button class="btn btn-manual" onclick="showManual()">⌨️ 手动输入 ISBN</button>
+  
+  <div id="manualInput" style="display:none">
+    <div class="inp-row">
+      <input type="text" id="isbnInput" placeholder="输入ISBN，如9787544270878" inputmode="numeric" autocomplete="off">
+      <button onclick="doLookup()">查询</button>
+    </div>
+  </div>
+  
+  <div class="result" id="resultCard">
+    <h3 id="rTitle">-</h3>
+    <div class="meta" id="rAuthor"></div>
+    <div class="meta" id="rPub"></div>
+    <div class="meta isbn" id="rISBN"></div>
+    <div class="btns">
+      <button class="btn btn-save" onclick="saveBook()" style="flex:1">📥 入库</button>
+      <button class="btn btn-out" onclick="cancelResult()" style="flex:0;padding:16px 24px">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ LIBRARY PAGE ═══════ -->
+<div class="pg" id="libPage">
+  <div class="lib-search"><input type="text" id="libSearch" placeholder="🔍 搜索书库..." oninput="renderLib()"></div>
+  <div class="lib-count" id="libCount"></div>
+  <div id="libList"></div>
+  <div class="empty" id="libEmpty"><div class="ic">📚</div>还没有书，去扫码添加吧</div>
+</div>
+
+<!-- Bottom Nav -->
+<div class="nav">
+  <div class="nav-item" onclick="switchPage('scan')" id="navScan"><span class="ni">📷</span>扫码</div>
+  <div class="nav-item on" onclick="switchPage('lib')" id="navLib"><span class="ni">📚</span>书库</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════ DATA ═══════
+const SK='mb_lib';
+let books=[],scanData=null,scanner=null,stream=null;
+function ld(){const r=localStorage.getItem(SK);if(r)books=JSON.parse(r)}
+function sv(){localStorage.setItem(SK,JSON.stringify(books))}
+function nid(){return books.length?Math.max(...books.map(b=>b.id))+1:1}
+
+// ═══════ NAV ═══════
+function switchPage(p){
+  document.querySelectorAll('.pg').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('on'));
+  document.getElementById(p+'Page').classList.add('on');
+  document.getElementById('nav'+p.charAt(0).toUpperCase()+p.slice(1)).classList.add('on');
+  document.getElementById('pageTitle').textContent=p==='scan'?'📷 扫书入库':'📚 我的书库';
+  if(p==='lib'){renderLib();stopScanner()}
+}
+// Default to scan page
+document.getElementById('navScan').classList.add('on');
+document.getElementById('navLib').classList.remove('on');
+
+// ═══════ BARCODE SCANNER ═══════
+async function startScanner(){
+  const vp=document.getElementById('viewport');
+  const status=document.getElementById('scanStatus');
+  const startBtn=document.getElementById('btnStartScan');
+  const perm=document.getElementById('permMsg');
+  
+  stopScanner();
+  vp.classList.remove('hidden');
+  perm.classList.remove('show');
+  startBtn.style.display='none';
+  status.textContent='正在启动相机...';
+  
+  // Try BarcodeDetector API (Chrome Android, best option)
+  if(typeof BarcodeDetector !== 'undefined'){
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});
+      const video=document.createElement('video');
+      video.srcObject=stream;
+      video.setAttribute('playsinline','');
+      video.setAttribute('autoplay','');
+      vp.innerHTML='';vp.appendChild(video);vp.appendChild(createFrame());
+      await video.play();
+      
+      const detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e']});
+      let active=true;status.textContent='对准 ISBN 条码';
+      
+      async function tick(){
+        if(!active||!stream)return;
+        try{
+          const codes=await detector.detect(video);
+          if(codes.length>0){
+            active=false;
+            const isbn=codes[0].rawValue.replace(/[^0-9X]/g,'');
+            if(isbn.length>=10){onBarcode(isbn);return}
+          }
+        }catch(e){}
+        if(active)requestAnimationFrame(tick);
+      }
+      tick();return;
+    }catch(e){}
+  }
+  
+  // Fallback: try html5-qrcode
+  if(typeof Html5Qrcode !== 'undefined'){
+    try{
+      scanner=new Html5Qrcode('viewport');
+      vp.innerHTML='';vp.appendChild(createFrame());
+      await scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:160}},
+        text=>{const isbn=text.replace(/[^0-9X]/g,'');if(isbn.length>=10){stopScanner();onBarcode(isbn)}},
+        ()=>{}
+      );
+      status.textContent='对准 ISBN 条码';return;
+    }catch(e){}
+  }
+  
+  // Nothing worked
+  vp.classList.add('hidden');
+  perm.classList.add('show');
+  startBtn.style.display='block';
+  status.textContent='扫码不可用，请手动输入ISBN';
+}
+
+function createFrame(){
+  const f=document.createElement('div');f.className='frame';
+  const sl=document.createElement('div');sl.className='scan-line';
+  f.appendChild(sl);return f;
+}
+
+function stopScanner(){
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  if(scanner){scanner.stop().catch(()=>{});scanner=null}
+}
+
+function onBarcode(isbn){
+  document.getElementById('isbnInput').value=isbn;
+  document.getElementById('manualInput').style.display='block';
+  document.getElementById('scanStatus').textContent='识别到 ISBN: '+isbn;
+  doLookup(isbn);
+}
+
+function showManual(){
+  document.getElementById('manualInput').style.display='block';
+}
+
+// ═══════ ISBN LOOKUP ═══════
+async function doLookup(isbn){
+  isbn=isbn||document.getElementById('isbnInput').value.replace(/[^0-9X]/g,'');
+  if(!isbn||isbn.length<10){toast('请输入有效ISBN');return}
+  
+  document.getElementById('resultCard').classList.remove('show');
+  document.getElementById('scanSpin').classList.add('on');
+  document.getElementById('scanStatus').textContent='正在查询...';
+  scanData=null;
+  
+  // Parallel requests - race to get result first
+  const controllers=[new AbortController(),new AbortController()];
+  setTimeout(()=>{controllers.forEach(c=>c.abort())},10000);
+  
+  const fetchers=[
+    fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`,{signal:controllers[0].signal})
+      .then(r=>r.json()).then(d=>{
+        if(!d.items||!d.items[0])return null;
+        const vi=d.items[0].volumeInfo;
+        return{isbn,title:vi.title||'',author:(vi.authors||[]).join(', '),publisher:vi.publisher||'',year:vi.publishedDate||'',cover:(vi.imageLinks||{}).thumbnail||''};
+      }).catch(()=>null),
+    
+    fetch(`https://openlibrary.org/isbn/${isbn}.json`,{signal:controllers[1].signal})
+      .then(r=>r.ok?r.json():null).then(async d=>{
+        if(!d||!d.title)return null;
+        let authors=[];
+        if(d.authors)for(const a of d.authors.slice(0,3)){try{const ar=await fetch(`https://openlibrary.org${a.key}.json`,{signal:controllers[1].signal});const ad=await ar.json();authors.push(ad.name||ad.personal_name||'')}catch(e){}}
+        return{isbn,title:d.title,author:authors.join(', '),publisher:(d.publishers||[])[0]||'',year:d.publish_date||'',cover:`https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg`};
+      }).catch(()=>null)
+  ];
+  
+  // Race: first one wins
+  const result=await Promise.race(fetchers.map(p=>p.then(r=>({resolved:true,data:r})).catch(()=>({resolved:false}))));
+  
+  // If first fails, try the other
+  if(!result.resolved||!result.data){
+    const other=await fetchers[result===fetchers[0]?1:0];
+    if(other){showResult(other);return}
+  }else if(result.data){showResult(result.data);return}
+  
+  document.getElementById('scanSpin').classList.remove('on');
+  document.getElementById('scanStatus').textContent='未找到此书';
+}
+
+function showResult(data){
+  scanData=data;
+  document.getElementById('scanSpin').classList.remove('on');
+  document.getElementById('scanStatus').textContent='';
+  document.getElementById('rTitle').textContent=data.title;
+  document.getElementById('rAuthor').textContent='作者：'+(data.author||'未知');
+  document.getElementById('rPub').textContent='出版社：'+(data.publisher||'未知');
+  document.getElementById('rISBN').textContent='ISBN：'+data.isbn;
+  document.getElementById('resultCard').classList.add('show');
+}
+
+function saveBook(){
+  if(!scanData)return;
+  if(books.some(b=>b.isbn===scanData.isbn)){toast('已在书库中');return}
+  books.unshift({id:nid(),title:scanData.title,author:scanData.author,publisher:scanData.publisher,isbn:scanData.isbn,cover:scanData.cover,category:'01-普通地质学',ext:'纸质',note:'',added:new Date().toISOString().slice(0,10)});
+  sv();cancelResult();toast('✅ 已入库');
+}
+
+function cancelResult(){
+  scanData=null;
+  document.getElementById('resultCard').classList.remove('show');
+  document.getElementById('isbnInput').value='';
+  document.getElementById('scanStatus').textContent='对准 ISBN 条码自动识别';
+  document.getElementById('btnStartScan').style.display='block';
+}
+
+// ═══════ LIBRARY ═══════
+function renderLib(){
+  const q=(document.getElementById('libSearch').value||'').toLowerCase().trim();
+  let filtered=books;
+  if(q){const ws=q.split(/\s+/);filtered=books.filter(b=>ws.every(w=>(b.title+b.author+b.publisher+b.isbn).toLowerCase().includes(w)))}
+  document.getElementById('libCount').textContent=`共 ${filtered.length} 本`;
+  const list=document.getElementById('libList'),em=document.getElementById('libEmpty');
+  if(!filtered.length){list.innerHTML='';em.style.display='block';return}
+  em.style.display='none';
+  list.innerHTML=filtered.map(b=>`<div class="book-item"><div class="info"><div class="t">${b.title}</div><div class="s">${b.author||'未知'} · ${b.publisher||''} · ${b.isbn||''}</div></div><button class="del" onclick="delBook(${b.id})">🗑</button></div>`).join('');
+}
+function delBook(id){if(!confirm('删除？'))return;books=books.filter(b=>b.id!==id);sv();renderLib();toast('已删除')}
+
+// ═══════ UTILS ═══════
+let toastTimer;
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),1800)}
+document.getElementById('isbnInput').addEventListener('keydown',e=>{if(e.key==='Enter')doLookup()});
+
+// ═══════ INIT ═══════
+ld();
+// Try to start scanner on load
+setTimeout(()=>{startScanner().catch(()=>{})},500);
+</script>
+</body>
+</html>
