@@ -272,14 +272,11 @@ async function doLookup(isbn){
       }).catch(()=>null)
   ];
   
-  // Race: first one wins
-  const result=await Promise.race(fetchers.map(p=>p.then(r=>({resolved:true,data:r})).catch(()=>({resolved:false}))));
-  
-  // If first fails, try the other
-  if(!result.resolved||!result.data){
-    const other=await fetchers[result===fetchers[0]?1:0];
-    if(other){showResult(other);return}
-  }else if(result.data){showResult(result.data);return}
+  // Wait for all, take first valid result
+  const results=await Promise.allSettled(fetchers);
+  for(const r of results){
+    if(r.status==='fulfilled'&&r.value&&r.value.title){showResult(r.value);return}
+  }
   
   document.getElementById('scanSpin').classList.remove('on');
   document.getElementById('scanStatus').textContent='未找到此书';
