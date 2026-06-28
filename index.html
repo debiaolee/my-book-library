@@ -202,8 +202,13 @@ tbody tr:hover td { background:var(--hover); }
 <div class="toast" id="toast"></div>
 
 <!-- ═══════ SCRIPTS ═══════ -->
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+// QR code generator - inline fallback if CDN fails
+</script>
+<script src="https://cdn.bootcdn.net/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" 
+  onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js'"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"
+  onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';document.head.appendChild(s)"></script>
 <script>
 // ═══════ DATA ═══════
 const SK = 'booklib_v2';
@@ -280,12 +285,107 @@ function saveBook() {
 function del(id) { if(!confirm('确定删除？')) return; books=books.filter(b=>b.id!==id); sv(); render(); toast('🗑 已删除','ok'); }
 
 // ═══════ SCAN ═══════
-function startScan() { if(scanner||!document.getElementById('reader')) return; scanner=new Html5Qrcode('reader'); scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:200,height:150}},t=>{ const isbn=t.replace(/[^0-9X]/g,''); if(isbn.length>=10){stopScan(); document.getElementById('isbnInput').value=isbn; lookupISBN(isbn);} },()=>{}).catch(e=>{document.querySelector('.scan-hint').textContent='⚠️ 相机不可用';scanner=null;}); }
+function startScan() {
+  const hint = document.querySelector('.scan-hint');
+  const reader = document.getElementById('reader');
+  if (!reader) return;
+
+  // Try native BarcodeDetector first (faster, works offline)
+  if (typeof BarcodeDetector !== 'undefined') {
+    hint.textContent = '📷 对准ISBN条码...';
+    let stream = null;
+    navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}}).then(s => {
+      stream = s;
+      const video = document.createElement('video');
+      video.srcObject = s;
+      video.setAttribute('playsinline', '');
+      video.play();
+      reader.innerHTML = '';
+      reader.appendChild(video);
+      video.style.width = '100%';
+      video.style.borderRadius = '12px';
+      
+      const detector = new BarcodeDetector({formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e']});
+      let scanning = true;
+      function scan() {
+        if (!scanning || !stream) return;
+        detector.detect(video).then(codes => {
+          if (codes.length > 0) {
+            scanning = false;
+            const isbn = codes[0].rawValue.replace(/[^0-9X]/g, '');
+            if (isbn.length >= 10) {
+              if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+              document.getElementById('isbnInput').value = isbn;
+              lookupISBN(isbn);
+            }
+          }
+        }).catch(() => {}).finally(() => { if (scanning) requestAnimationFrame(scan); });
+      }
+      scan();
+    }).catch(() => {
+      hint.textContent = '⚠️ 相机不可用，尝试其他方式...';
+      // Fallback to html5-qrcode
+      startHtml5Scanner();
+    });
+    return;
+  }
+  
+  // Fallback: html5-qrcode library
+  startHtml5Scanner();
+}
+
+function startHtml5Scanner() {
+  if (typeof Html5Qrcode === 'undefined') {
+    document.querySelector('.scan-hint').textContent = '⚠️ 扫码库加载中，请稍候或手动输入ISBN';
+    setTimeout(() => {
+      if (typeof Html5Qrcode !== 'undefined') startHtml5Scanner();
+      else document.querySelector('.scan-hint').textContent = '⚠️ 扫码库加载失败，请手动输入ISBN';
+    }, 3000);
+    return;
+  }
+  if (scanner) return;
+  const reader = document.getElementById('reader');
+  reader.innerHTML = '';
+  scanner = new Html5Qrcode('reader');
+  scanner.start(
+    {facingMode: 'environment'},
+    {fps: 10, qrbox: {width: 200, height: 150}},
+    t => {
+      const isbn = t.replace(/[^0-9X]/g, '');
+      if (isbn.length >= 10) {
+        stopScan();
+        document.getElementById('isbnInput').value = isbn;
+        lookupISBN(isbn);
+      }
+    },
+    () => {}
+  ).catch(e => {
+    document.querySelector('.scan-hint').textContent = '⚠️ 无法打开相机，请手动输入ISBN';
+    scanner = null;
+  });
+}
 function stopScan() { if(scanner){scanner.stop().catch(()=>{});scanner=null;} }
 async function lookupISBN(isbn) {
   isbn = isbn || document.getElementById('isbnInput').value.replace(/[^0-9X]/g,'');
   if (!isbn||isbn.length<10) { toast('请输入有效ISBN','err'); return; }
   document.getElementById('scanResult').style.display='none'; scanData = null;
+  toast('🔍 正在查询...','ok');
+  
+  // Try Douban API first (better for Chinese books)
+  try {
+    const dr = await fetch(`https://api.douban.com/v2/book/isbn/${isbn}`);
+    if (dr.ok) {
+      const dd = await dr.json();
+      scanData = {
+        isbn, title: dd.title||'', author: (dd.author||[]).join(', '),
+        publisher: dd.publisher||'', cover: (dd.images||{}).large||(dd.image||''),
+        year: dd.pubdate||''
+      };
+      showScanResult(); return;
+    }
+  } catch(e) {}
+
+  // Try Open Library
   try {
     const r=await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
     if(!r.ok) throw new Error();
@@ -295,8 +395,11 @@ async function lookupISBN(isbn) {
     scanData = { isbn, title:d.title||'', author:authors.join(', '), publisher:(d.publishers||[])[0]||'', cover:`https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg`, year:d.publish_date||'' };
     showScanResult();
   } catch(e) {
+    // Try Google Books
     try {
-      const gr=await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 8000);
+      const gr=await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`, {signal: controller.signal});
       const gd=await gr.json();
       if(gd.items&&gd.items[0]){ const vi=gd.items[0].volumeInfo; scanData={isbn,title:vi.title||'',author:(vi.authors||[]).join(', '),publisher:vi.publisher||'',cover:vi.imageLinks?.thumbnail?.replace('http:','https:')||'',year:vi.publishedDate||''}; showScanResult(); }
       else toast('未找到此书','err');
