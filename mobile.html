@@ -251,35 +251,28 @@ async function doLookup(isbn){
   document.getElementById('scanStatus').textContent='正在查询...';
   scanData=null;
   
-  // Parallel requests - race to get result first
-  const controllers=[new AbortController(),new AbortController()];
-  setTimeout(()=>{controllers.forEach(c=>c.abort())},10000);
+  var ctrl=new AbortController();setTimeout(function(){ctrl.abort()},12000);
   
-  const fetchers=[
-    fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`,{signal:controllers[0].signal})
-      .then(r=>r.json()).then(d=>{
-        if(!d.items||!d.items[0])return null;
-        const vi=d.items[0].volumeInfo;
-        return{isbn,title:vi.title||'',author:(vi.authors||[]).join(', '),publisher:vi.publisher||'',year:vi.publishedDate||'',cover:(vi.imageLinks||{}).thumbnail||''};
-      }).catch(()=>null),
+  try{
+    var r=await fetch('https://openlibrary.org/isbn/'+isbn+'.json',{signal:ctrl.signal});
+    if(!r.ok)throw new Error('not found');
+    var d=await r.json();
+    if(!d.title)throw new Error('no title');
     
-    fetch(`https://openlibrary.org/isbn/${isbn}.json`,{signal:controllers[1].signal})
-      .then(r=>r.ok?r.json():null).then(async d=>{
-        if(!d||!d.title)return null;
-        let authors=[];
-        if(d.authors)for(const a of d.authors.slice(0,3)){try{const ar=await fetch(`https://openlibrary.org${a.key}.json`,{signal:controllers[1].signal});const ad=await ar.json();authors.push(ad.name||ad.personal_name||'')}catch(e){}}
-        return{isbn,title:d.title,author:authors.join(', '),publisher:(d.publishers||[])[0]||'',year:d.publish_date||'',cover:`https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg`};
-      }).catch(()=>null)
-  ];
-  
-  // Wait for all, take first valid result
-  const results=await Promise.allSettled(fetchers);
-  for(const r of results){
-    if(r.status==='fulfilled'&&r.value&&r.value.title){showResult(r.value);return}
+    var authors=[];
+    if(d.authors&&d.authors.length){
+      for(var i=0;i<Math.min(d.authors.length,3);i++){
+        try{
+          var ar=await fetch('https://openlibrary.org'+d.authors[i].key+'.json',{signal:ctrl.signal});
+          if(ar.ok){var ad=await ar.json();authors.push(ad.name||ad.personal_name||'')}
+        }catch(e){}
+      }
+    }
+    showResult({isbn:isbn,title:d.title,author:authors.join(', '),publisher:(d.publishers||[])[0]||'',year:d.publish_date||'',cover:'https://covers.openlibrary.org/b/isbn/'+isbn+'-M.jpg'});
+  }catch(e){
+    document.getElementById('scanSpin').classList.remove('on');
+    document.getElementById('scanStatus').textContent='未找到此书，请手动录入';
   }
-  
-  document.getElementById('scanSpin').classList.remove('on');
-  document.getElementById('scanStatus').textContent='未找到此书';
 }
 
 function showResult(data){
