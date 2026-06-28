@@ -81,7 +81,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro","PingFang SC","Micros
 </head>
 <body>
 
-<div class="hd"><h1 id="pageTitle">📷 扫书入库</h1></div>
+<div class="hd"><h1 id="pageTitle">📷 扫书入库</h1><div style="text-align:center;font-size:10px;color:#444;margin-top:2px">v2.1</div></div>
 
 <!-- ═══════ SCAN PAGE ═══════ -->
 <div class="pg on" id="scanPage">
@@ -248,10 +248,10 @@ async function doLookup(isbn){
   
   document.getElementById('resultCard').classList.remove('show');
   document.getElementById('scanSpin').classList.add('on');
-  document.getElementById('scanStatus').textContent='正在查询...';
+  document.getElementById('scanStatus').textContent='正在查询...（约需5-15秒）';
   scanData=null;
   
-  var ctrl=new AbortController();setTimeout(function(){ctrl.abort()},12000);
+  var ctrl=new AbortController();setTimeout(function(){ctrl.abort()},20000);
   
   try{
     var r=await fetch('https://openlibrary.org/isbn/'+isbn+'.json',{signal:ctrl.signal});
@@ -271,7 +271,7 @@ async function doLookup(isbn){
     showResult({isbn:isbn,title:d.title,author:authors.join(', '),publisher:(d.publishers||[])[0]||'',year:d.publish_date||'',cover:'https://covers.openlibrary.org/b/isbn/'+isbn+'-M.jpg'});
   }catch(e){
     document.getElementById('scanSpin').classList.remove('on');
-    document.getElementById('scanStatus').textContent='未找到此书，请手动录入';
+    document.getElementById('scanStatus').textContent='未找到，请尝试手动录入（中文书建议用拼音书名搜索）';
   }
 }
 
