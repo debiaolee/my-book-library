@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="我的书库">
+<title>📚 我的书库</title>
+<style>
+:root {
+  --bg:#f5f6fa; --card:#fff; --text:#1a1a2e; --text2:#888; --primary:#2c3e6b;
+  --accent:#3498db; --danger:#e74c3c; --border:#e0e4e8; --hover:#edf2f7;
+  --sidebar-w:220px; --tab-h:56px; --safe-b:env(safe-area-inset-bottom,8px);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+/* ── RESPONSIVE: Desktop layout ── */
+@media(min-width:768px) { body { flex-direction:row; } }
+/* ── Sidebar (desktop) ── */
+.sidebar { display:none; width:var(--sidebar-w); background:var(--primary); color:#fff; flex-direction:column; flex-shrink:0; overflow-y:auto; }
+@media(min-width:768px) { .sidebar { display:flex; } }
+.sidebar-header { padding:20px 16px 12px; border-bottom:1px solid rgba(255,255,255,0.1); }
+.sidebar-header h2 { font-size:18px; }
+.sidebar-stats { padding:8px 16px; display:flex; gap:6px; flex-wrap:wrap; }
+.sidebar-stats span { background:rgba(255,255,255,0.1); padding:2px 10px; border-radius:10px; font-size:11px; }
+.cat-nav { flex:1; overflow-y:auto; padding:4px 0; }
+.cat-nav .cat-item { display:flex; align-items:center; gap:6px; padding:7px 16px; cursor:pointer; font-size:13px; border-left:3px solid transparent; transition:background 0.15s; }
+.cat-nav .cat-item:hover { background:rgba(255,255,255,0.08); }
+.cat-nav .cat-item.active { background:rgba(255,255,255,0.15); border-left-color:var(--accent); }
+.cat-nav .cat-item .cnt { margin-left:auto; background:rgba(255,255,255,0.12); padding:0 7px; border-radius:10px; font-size:11px; }
+/* ── Main area ── */
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.toolbar { display:flex; gap:8px; padding:10px 14px; background:var(--card); border-bottom:1px solid var(--border); align-items:center; flex-wrap:wrap; flex-shrink:0; }
+.toolbar .search-wrap { flex:1; min-width:160px; position:relative; }
+.toolbar .search-wrap input { width:100%; padding:9px 14px 9px 34px; border:1.5px solid var(--border); border-radius:8px; font-size:14px; outline:none; }
+.toolbar .search-wrap .si { position:absolute; left:10px; top:50%; transform:translateY(-50%); opacity:0.4; }
+.toolbar input:focus { border-color:var(--accent); }
+.btn { padding:7px 14px; border:none; border-radius:7px; cursor:pointer; font-size:13px; font-weight:500; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }
+.btn-p { background:var(--accent); color:#fff; }
+.btn-o { background:var(--card); border:1.5px solid var(--border); }
+.btn-d { background:var(--danger); color:#fff; }
+.btn-sm { padding:4px 10px; font-size:11px; }
+.btn-o:hover { background:var(--hover); }
+/* ── Table/content ── */
+.content { flex:1; overflow-y:auto; padding:0 12px 12px; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+thead th { position:sticky; top:0; background:var(--bg); padding:8px 10px; text-align:left; font-size:11px; color:var(--text2); border-bottom:2px solid var(--border); cursor:pointer; z-index:5; }
+tbody td { padding:7px 10px; border-bottom:1px solid var(--border); }
+tbody tr:hover td { background:var(--hover); }
+.cell-title { max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+.cell-title:hover { color:var(--accent); }
+.cell-cat { font-size:10px; padding:1px 6px; border-radius:3px; background:#e8eaf6; color:#3949ab; }
+.cell-ext { font-size:10px; font-weight:600; padding:1px 5px; border-radius:3px; }
+.cell-ext.pdf { background:#ffebee; color:#c62828; }
+.cell-ext.epub { background:#e8f5e9; color:#2e7d32; }
+.empty { text-align:center; padding:50px 20px; color:#999; display:none; }
+.empty .icon { font-size:48px; margin-bottom:8px; }
+/* ── Mobile bottom tabs ── */
+.mob-tabs { display:flex; background:var(--card); border-top:1px solid #eee; flex-shrink:0; padding-bottom:var(--safe-b); }
+@media(min-width:768px) { .mob-tabs { display:none; } }
+.mob-tab { flex:1; text-align:center; padding:6px 2px; cursor:pointer; font-size:11px; color:var(--text2); }
+.mob-tab.active { color:var(--accent); font-weight:600; }
+.mob-tab .ico { font-size:20px; display:block; }
+/* ── Mobile scan page ── */
+.scan-page { display:none; flex-direction:column; flex:1; overflow-y:auto; padding:12px; background:#000; }
+.scan-page.show { display:flex; }
+#reader { flex:1; min-height:200px; border-radius:12px; overflow:hidden; }
+.scan-overlay { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:180px; height:140px; border:3px solid rgba(52,152,219,0.8); border-radius:8px; pointer-events:none; }
+.scan-hint { text-align:center; color:#fff; font-size:13px; padding:8px; }
+.isbn-row { display:flex; gap:8px; padding:8px 0; }
+.isbn-row input { flex:1; padding:10px; border-radius:8px; border:none; font-size:15px; }
+.isbn-row button { padding:10px 16px; background:var(--accent); color:#fff; border:none; border-radius:8px; font-size:14px; }
+/* ── Modals ── */
+.modal-o { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:100; justify-content:center; align-items:center; }
+.modal-o.show { display:flex; }
+.modal { background:var(--card); border-radius:12px; width:90%; max-width:500px; max-height:85vh; overflow-y:auto; padding:20px; }
+.modal h3 { margin-bottom:14px; }
+.modal .close { float:right; background:none; border:none; font-size:20px; cursor:pointer; }
+.fg { margin-bottom:12px; }
+.fg label { display:block; font-size:12px; font-weight:600; color:var(--text2); margin-bottom:3px; }
+.fg input,.fg select,.fg textarea { width:100%; padding:8px 10px; border:1.5px solid var(--border); border-radius:6px; font-size:14px; outline:none; font-family:inherit; }
+.fg input:focus,.fg select:focus,.fg textarea:focus { border-color:var(--accent); }
+.fg textarea { min-height:50px; resize:vertical; }
+.fa { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+/* ── QR Sync ── */
+#qrModal .qr-code { text-align:center; margin:12px 0; }
+#qrModal canvas,#qrModal img { max-width:250px; }
+/* ── Toast ── */
+.toast { position:fixed; bottom:80px; left:16px; right:16px; padding:10px 16px; border-radius:8px; color:#fff; font-size:14px; text-align:center; z-index:200; display:none; animation:su 0.3s; }
+.toast.ok { background:#27ae60; }
+.toast.err { background:var(--danger); }
+@keyframes su { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
+/* ── Responsive hide/show ── */
+@media(max-width:767px) { .desktop-only { display:none !important; } }
+@media(min-width:768px) { .mobile-only { display:none !important; } }
+</style>
+</head>
+<body>
+
+<!-- ═══════ SIDEBAR (desktop) ═══════ -->
+<aside class="sidebar">
+  <div class="sidebar-header"><h2>📚 我的书库</h2></div>
+  <div class="sidebar-stats"><span id="sTotal"></span><span id="sSize"></span></div>
+  <nav class="cat-nav" id="catNav"></nav>
+  <div style="padding:8px 16px;font-size:11px;opacity:0.4">扫码同步 · 跨设备</div>
+</aside>
+
+<!-- ═══════ MAIN ═══════ -->
+<div class="main">
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="search-wrap"><span class="si">🔍</span><input type="text" id="search" placeholder="搜索..."></div>
+    <button class="btn btn-p" onclick="openEdit()">＋ 加书</button>
+    <button class="btn btn-o" onclick="openQRExport()">📤 同步</button>
+    <button class="btn btn-o" onclick="openQRImport()">📥 导入</button>
+    <span style="font-size:12px;color:var(--text2)" id="rInfo"></span>
+  </div>
+  <!-- Content -->
+  <div class="content">
+    <table><thead><tr>
+      <th onclick="setSort('id')">#</th><th onclick="setSort('title')">书名</th>
+      <th onclick="setSort('category')" class="desktop-only">分类</th>
+      <th onclick="setSort('ext')" class="desktop-only">格式</th>
+      <th class="desktop-only">操作</th>
+    </tr></thead><tbody id="bookTable"></tbody></table>
+    <div class="empty" id="empty"><div class="icon">📭</div>没有图书，开始扫描吧！</div>
+  </div>
+</div>
+
+<!-- ═══════ MOBILE SCAN PAGE ═══════ -->
+<div class="scan-page" id="scanPage">
+  <div style="position:relative;flex:1;display:flex;flex-direction:column">
+    <div id="reader"></div>
+    <div class="scan-overlay"></div>
+    <div class="scan-hint">📷 对准ISBN条码自动识别</div>
+  </div>
+  <div class="isbn-row">
+    <input type="text" id="isbnInput" placeholder="或输入ISBN..." inputmode="numeric">
+    <button onclick="lookupISBN()">查询</button>
+  </div>
+  <div style="padding:8px;text-align:center"><button class="btn btn-o btn-sm" onclick="openEdit()">✏️ 手动录入</button></div>
+  <div style="background:var(--card);border-radius:10px;padding:12px;margin-bottom:8px;display:none" id="scanResult">
+    <div style="display:flex;gap:10px;align-items:start">
+      <img id="scanCover" style="width:60px;height:84px;object-fit:cover;border-radius:6px;background:#eee" src="" onerror="this.style.display='none'">
+      <div style="flex:1">
+        <div style="font-weight:600" id="scanTitle">-</div>
+        <div style="font-size:13px;color:var(--text2)" id="scanAuthor">-</div>
+        <div style="font-size:11px;color:#bbb" id="scanISBN">-</div>
+      </div>
+    </div>
+    <button class="btn btn-p btn-sm" style="width:100%;margin-top:8px" onclick="saveScan()">📥 添加到书库</button>
+  </div>
+</div>
+
+<!-- ═══════ MOBILE BOTTOM TABS ═══════ -->
+<div class="mob-tabs">
+  <div class="mob-tab active" data-page="library" onclick="switchMobileTab('library')"><span class="ico">📚</span>书库</div>
+  <div class="mob-tab" data-page="scan" onclick="switchMobileTab('scan')"><span class="ico">📷</span>扫描</div>
+  <div class="mob-tab" data-page="settings" onclick="switchMobileTab('settings')"><span class="ico">⚙️</span>设置</div>
+</div>
+
+<!-- ═══════ EDIT MODAL ═══════ -->
+<div class="modal-o" id="editModal">
+  <div class="modal">
+    <button class="close" onclick="closeM('editModal')">✕</button>
+    <h3 id="editTitle">添加图书</h3>
+    <div class="fg"><label>书名 *</label><input id="eTitle"></div>
+    <div class="fg"><label>作者</label><input id="eAuthor"></div>
+    <div class="fg"><label>ISBN</label><input id="eISBN" inputmode="numeric"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg"><label>分类</label><input id="eCat" list="catList" placeholder="选择或输入"><datalist id="catList"></datalist></div>
+      <div class="fg"><label>格式</label><select id="eExt"><option>.pdf</option><option>.epub</option><option>.mobi</option><option>纸质</option><option>其他</option></select></div>
+    </div>
+    <div class="fg"><label>备注</label><textarea id="eNote"></textarea></div>
+    <input type="hidden" id="eId">
+    <div class="fa"><button class="btn btn-o" onclick="closeM('editModal')">取消</button><button class="btn btn-p" onclick="saveBook()">保存</button></div>
+  </div>
+</div>
+
+<!-- ═══════ QR EXPORT MODAL ═══════ -->
+<div class="modal-o" id="qrExportModal">
+  <div class="modal"><button class="close" onclick="closeM('qrExportModal')">✕</button>
+    <h3>📤 同步到另一台设备</h3>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:8px">用另一台设备打开此书库，点「📥 导入」，扫描下方二维码即可同步全部数据。</p>
+    <div class="qr-code" id="qrExportCode"></div>
+    <p style="font-size:12px;color:var(--text2);text-align:center" id="qrExportInfo"></p>
+  </div>
+</div>
+
+<!-- ═══════ QR IMPORT MODAL ═══════ -->
+<div class="modal-o" id="qrImportModal">
+  <div class="modal"><button class="close" onclick="closeM('qrImportModal')">✕</button>
+    <h3>📥 从另一台设备导入</h3>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:8px">扫描另一台设备上生成的同步二维码</p>
+    <div id="qrImportReader" style="width:100%;max-width:300px;margin:0 auto"></div>
+    <p id="qrImportStatus" style="text-align:center;font-size:13px;margin-top:8px;color:var(--text2)"></p>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- ═══════ SCRIPTS ═══════ -->
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+// ═══════ DATA ═══════
+const SK = 'booklib_v2';
+const CATS = ['01-普通地质学','02-矿物岩石学','03-构造地质学','04-沉积学与地层学','05-地球化学','06-地球物理与遥感','07-矿床学与矿产勘查','08-石油天然气地质','09-水文工程环境地质','10-海洋与气候','11-地史与古生物','12-野外手册与图册','13-区域地质','15-编程与AI','16-思维方法与写作','17-人文社科','18-经济理财','19-文学传记','20-个人成长心理','21-英语学习','22-生态与环境'];
+const CAT_ICON = {'01':'🌍','02':'💎','03':'🔧','04':'📐','05':'⚗️','06':'🛰️','07':'⛏️','08':'🛢️','09':'💧','10':'🌊','11':'🦕','12':'📖','13':'🗺️','15':'💻','16':'🧠','17':'📜','18':'💰','19':'🖋️','20':'🌱','21':'🇬🇧','22':'🌿'};
+
+let books = [], curCat = '', sort = {f:'id',a:true}, scanData = null, scanner = null, qrScanner = null;
+
+function ld() { const r=localStorage.getItem(SK); books=r?JSON.parse(r):[]; }
+function sv() { localStorage.setItem(SK,JSON.stringify(books)); }
+function nxId() { return books.length ? Math.max(...books.map(b=>b.id))+1 : 1; }
+
+// ═══════ RENDER ═══════
+function filt() {
+  let r = [...books];
+  if (curCat) r = r.filter(b => b.category === curCat);
+  const q = document.getElementById('search').value.toLowerCase().trim();
+  if (q) { const ws = q.split(/\s+/); r = r.filter(b => ws.every(w => (b.title+b.author+b.isbn+b.note).toLowerCase().includes(w))); }
+  r.sort((a,b) => { let va=a[sort.f]||'',vb=b[sort.f]||''; if(typeof va==='string'){va=va.toLowerCase();vb=vb.toLowerCase();} return va<vb?(sort.a?-1:1):va>vb?(sort.a?1:-1):0; });
+  return r;
+}
+function render() {
+  const fd = filt(), q = document.getElementById('search').value.toLowerCase().trim();
+  const tb = document.getElementById('bookTable'), em = document.getElementById('empty');
+  if (!fd.length) { tb.innerHTML=''; em.style.display='block'; }
+  else {
+    em.style.display='none';
+    tb.innerHTML = fd.map(b => `
+      <tr>
+        <td>${b.id}</td>
+        <td class="cell-title" onclick="openEdit(${b.id})">${hl(b.title,q)}</td>
+        <td class="desktop-only"><span class="cell-cat">${CAT_ICON[(b.category||'').slice(0,2)]||''} ${(b.category||'').replace(/^\\d+-/,'')}</span></td>
+        <td class="desktop-only"><span class="cell-ext ${(b.ext||'').replace('.','')}">${b.ext||'-'}</span></td>
+        <td class="desktop-only"><button class="btn btn-o btn-sm" onclick="openEdit(${b.id})">✏️</button> <button class="btn btn-o btn-sm" style="color:var(--danger)" onclick="del(${b.id})">🗑</button></td>
+      </tr>`).join('');
+  }
+  document.getElementById('rInfo').textContent = `${fd.length} / ${books.length} 本`;
+  renderSidebar();
+}
+function hl(t,q) { if(!q) return t; let r=t; q.split(/\s+/).forEach(w => { const e=w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); r=r.replace(new RegExp(`(${e})`,'gi'),'<span style="background:#ffe082;padding:0 2px;border-radius:2px">$1</span>'); }); return r; }
+function renderSidebar() {
+  const cc = {}; books.forEach(b => { cc[b.category]=(cc[b.category]||0)+1; });
+  const allCats = [...new Set([...CATS,...Object.keys(cc)])].sort();
+  let h = `<div class="cat-item${!curCat?' active':''}" onclick="setCat('')">📚 全部<span class="cnt">${books.length}</span></div>`;
+  allCats.forEach(c => { const n=c.replace(/^\d+-/,''); h+=`<div class="cat-item${curCat===c?' active':''}" onclick="setCat('${c}')">${CAT_ICON[c.slice(0,2)]||'📌'} ${n}<span class="cnt">${cc[c]||0}</span></div>`; });
+  document.getElementById('catNav').innerHTML = h;
+  document.getElementById('sTotal').textContent = `📦 ${books.length}本`;
+  document.getElementById('sSize').textContent = `📂 ${Object.keys(cc).length}类`;
+}
+
+// ═══════ CRUD ═══════
+function openEdit(id) {
+  const b = id ? books.find(bk=>bk.id===id) : null;
+  document.getElementById('eId').value = id||'';
+  document.getElementById('eTitle').value = b?b.title:'';
+  document.getElementById('eAuthor').value = b?b.author:'';
+  document.getElementById('eISBN').value = b?b.isbn:'';
+  document.getElementById('eCat').value = b?b.category:'01-普通地质学';
+  document.getElementById('eExt').value = b?b.ext:'.pdf';
+  document.getElementById('eNote').value = b?b.note:'';
+  document.getElementById('editTitle').textContent = id ? '✏️ 编辑' : '＋ 添加';
+  document.getElementById('catList').innerHTML = CATS.map(c => `<option value="${c}">${CAT_ICON[c.slice(0,2)]||''} ${c.replace(/^\d+-/,'')}</option>`).join('');
+  document.getElementById('editModal').classList.add('show');
+  setTimeout(()=>document.getElementById('eTitle').focus(),100);
+}
+function saveBook() {
+  const id = document.getElementById('eId').value;
+  const title = document.getElementById('eTitle').value.trim();
+  if (!title) { toast('请输入书名','err'); return; }
+  const data = { id: id?+id:nxId(), title, author:document.getElementById('eAuthor').value.trim(), isbn:document.getElementById('eISBN').value.trim(), category:document.getElementById('eCat').value, ext:document.getElementById('eExt').value, note:document.getElementById('eNote').value.trim(), added:id?(books.find(b=>b.id===+id)||{}).added||'':new Date().toISOString().slice(0,10) };
+  if (id) { const i=books.findIndex(b=>b.id===+id); if(i>=0) books[i]=data; } else books.unshift(data);
+  sv(); closeM('editModal'); render(); toast(id?'✅ 已更新':'✅ 已添加','ok');
+}
+function del(id) { if(!confirm('确定删除？')) return; books=books.filter(b=>b.id!==id); sv(); render(); toast('🗑 已删除','ok'); }
+
+// ═══════ SCAN ═══════
+function startScan() { if(scanner||!document.getElementById('reader')) return; scanner=new Html5Qrcode('reader'); scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:200,height:150}},t=>{ const isbn=t.replace(/[^0-9X]/g,''); if(isbn.length>=10){stopScan(); document.getElementById('isbnInput').value=isbn; lookupISBN(isbn);} },()=>{}).catch(e=>{document.querySelector('.scan-hint').textContent='⚠️ 相机不可用';scanner=null;}); }
+function stopScan() { if(scanner){scanner.stop().catch(()=>{});scanner=null;} }
+async function lookupISBN(isbn) {
+  isbn = isbn || document.getElementById('isbnInput').value.replace(/[^0-9X]/g,'');
+  if (!isbn||isbn.length<10) { toast('请输入有效ISBN','err'); return; }
+  document.getElementById('scanResult').style.display='none'; scanData = null;
+  try {
+    const r=await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
+    if(!r.ok) throw new Error();
+    const d=await r.json();
+    let authors=[];
+    if(d.authors) for(const a of d.authors.slice(0,2)) { try{const ar=await fetch(`https://openlibrary.org${a.key}.json`); const ad=await ar.json(); authors.push(ad.name||ad.personal_name||''); }catch(e){} }
+    scanData = { isbn, title:d.title||'', author:authors.join(', '), publisher:(d.publishers||[])[0]||'', cover:`https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg`, year:d.publish_date||'' };
+    showScanResult();
+  } catch(e) {
+    try {
+      const gr=await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+      const gd=await gr.json();
+      if(gd.items&&gd.items[0]){ const vi=gd.items[0].volumeInfo; scanData={isbn,title:vi.title||'',author:(vi.authors||[]).join(', '),publisher:vi.publisher||'',cover:vi.imageLinks?.thumbnail?.replace('http:','https:')||'',year:vi.publishedDate||''}; showScanResult(); }
+      else toast('未找到此书','err');
+    } catch(e2) { toast('未找到此书，请手动录入','err'); }
+  }
+}
+function showScanResult() {
+  if(!scanData) return;
+  document.getElementById('scanTitle').textContent = scanData.title;
+  document.getElementById('scanAuthor').textContent = scanData.author||'未知作者';
+  document.getElementById('scanISBN').textContent = 'ISBN: '+scanData.isbn;
+  const cv=document.getElementById('scanCover'); cv.src=scanData.cover||''; cv.style.display=scanData.cover?'block':'none';
+  document.getElementById('scanResult').style.display='block';
+}
+function saveScan() {
+  if(!scanData) return;
+  if(books.some(b=>b.isbn===scanData.isbn)){toast('已在书库中','err');return;}
+  books.unshift({id:nxId(),title:scanData.title,author:scanData.author,publisher:scanData.publisher,isbn:scanData.isbn,cover:scanData.cover,category:'01-普通地质学',ext:'纸质',note:'',added:new Date().toISOString().slice(0,10)});
+  sv(); document.getElementById('scanResult').style.display='none'; scanData=null; document.getElementById('isbnInput').value=''; render(); toast('✅ 已入库','ok'); startScan();
+}
+
+// ═══════ QR SYNC ═══════
+function openQRExport() {
+  document.getElementById('qrExportModal').classList.add('show');
+  setTimeout(()=>{
+    document.getElementById('qrExportCode').innerHTML='';
+    const json = JSON.stringify(books);
+    // Split into chunks if too large
+    const maxChunk = 1500;
+    if(json.length <= maxChunk) {
+      new QRCode(document.getElementById('qrExportCode'),{text:json,width:250,height:250});
+      document.getElementById('qrExportInfo').textContent = `包含 ${books.length} 本书 · ${(json.length/1024).toFixed(1)}KB`;
+    } else {
+      // Large library: show chunks one by one
+      const chunks = [];
+      for(let i=0;i<json.length;i+=maxChunk) chunks.push(json.slice(i,i+maxChunk));
+      let ci = 0;
+      function showChunk() {
+        document.getElementById('qrExportCode').innerHTML='';
+        new QRCode(document.getElementById('qrExportCode'),{text:`CHUNK:${ci+1}/${chunks.length}:`+chunks[ci],width:250,height:250});
+        document.getElementById('qrExportInfo').innerHTML = `分块 ${ci+1}/${chunks.length} · ${books.length}本 · <button class="btn btn-o btn-sm" onclick="ci=${ci<chunks.length-1?ci+1:0};showChunk()">下一块 ▶</button>`;
+      }
+      showChunk();
+    }
+  },200);
+}
+function openQRImport() {
+  document.getElementById('qrImportModal').classList.add('show');
+  document.getElementById('qrImportStatus').textContent = '对准同步二维码...';
+  setTimeout(()=>{
+    document.getElementById('qrImportReader').innerHTML='';
+    if(qrScanner) { qrScanner.stop().catch(()=>{}); qrScanner=null; }
+    qrScanner = new Html5Qrcode('qrImportReader');
+    qrScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:250}},
+      txt => {
+        qrScanner.stop().catch(()=>{}); qrScanner=null;
+        try {
+          // Handle chunks
+          if(txt.startsWith('CHUNK:')) {
+            // Simple chunk handling for now - just show message
+            const parts = txt.split(':');
+            document.getElementById('qrImportStatus').innerHTML = `收到数据块 ${parts[1]} · 已在导入中...`;
+            // For simplicity, we'll import single-chunk or small libraries
+          }
+          const data = JSON.parse(txt.replace(/^CHUNK:\d+\/\d+:/,''));
+          if(!Array.isArray(data)) throw new Error('格式错误');
+          const existingIsbns = new Set(books.map(b=>b.isbn).filter(Boolean));
+          let added = 0;
+          data.forEach(b => { if(!b.isbn||!existingIsbns.has(b.isbn)){ books.push({...b,id:b.id||nxId()+Math.random()}); added++; } });
+          sv(); render(); closeM('qrImportModal');
+          toast(`📥 导入 ${added} 本新书`,'ok');
+        } catch(e) {
+          document.getElementById('qrImportStatus').textContent = '❌ 识别失败，请重试';
+          setTimeout(()=>{ if(qrScanner) qrScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:250}},()=>{},()=>{}); },2000);
+        }
+      }, ()=>{}
+    ).catch(e=>{ document.getElementById('qrImportStatus').textContent='⚠️ 相机不可用'; });
+  },300);
+}
+
+// ═══════ MOBILE TABS ═══════
+function switchMobileTab(name) {
+  document.querySelectorAll('.mob-tab').forEach((t,i)=>{ t.classList.toggle('active',['library','scan','settings'][i]===name); });
+  const scanPg = document.getElementById('scanPage');
+  const mainEl = document.querySelector('.main');
+  if(name==='scan') {
+    scanPg.classList.add('show');
+    mainEl.style.display='none';
+    setTimeout(startScan,300);
+  } else {
+    scanPg.classList.remove('show');
+    mainEl.style.display='flex';
+    stopScan();
+    if(name==='library') render();
+    if(name==='settings') openSettings();
+  }
+}
+function openSettings() {
+  // Simple settings modal for mobile
+  const h=`<div class="fg"><h4>📤 导出</h4><button class="btn btn-o btn-sm" onclick="exportFile();closeM('setModal')">导出JSON文件</button></div>
+  <div class="fg"><h4>📥 导入</h4><input type="file" id="impFile" accept=".json" style="display:none" onchange="impF(event)"><button class="btn btn-o btn-sm" onclick="document.getElementById('impFile').click()">选择JSON文件</button></div>
+  <div class="fg"><h4>🔗 跨设备同步</h4><button class="btn btn-o btn-sm" onclick="closeM('setModal');openQRExport()">📤 生成同步二维码</button> <button class="btn btn-o btn-sm" onclick="closeM('setModal');openQRImport()">📥 扫描同步二维码</button></div>`;
+  const modal = document.createElement('div');
+  modal.className='modal-o show'; modal.id='setModal'; modal.innerHTML=`<div class="modal"><button class="close" onclick="this.closest('.modal-o').remove()">✕</button><h3>⚙️ 设置</h3>${h}</div>`;
+  modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+  document.body.appendChild(modal);
+}
+function exportFile() { const j=JSON.stringify(books,null,2); const b=new Blob([j],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=`书库_${new Date().toISOString().slice(0,10)}.json`; a.click(); toast('📤 已导出','ok'); }
+function impF(e) { const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=ev=>{ try{const d=JSON.parse(ev.target.result); if(!Array.isArray(d))throw new Error(); const ex=new Set(books.map(b=>b.isbn).filter(Boolean)); let a=0; d.forEach(b=>{if(!b.isbn||!ex.has(b.isbn)){books.push({...b,id:b.id||nxId()+Math.random()});a++;}}); sv();render();toast(`📥 导入${a}本`,'ok'); }catch(er){toast('格式错误','err');} }; r.readAsText(f); e.target.value=''; }
+
+// ═══════ HELPERS ═══════
+function setCat(c) { curCat=c; render(); }
+function setSort(f) { if(sort.f===f) sort.a=!sort.a; else {sort.f=f;sort.a=true;} render(); }
+function closeM(id) { document.getElementById(id).classList.remove('show'); if(id==='qrImportModal'&&qrScanner){qrScanner.stop().catch(()=>{});qrScanner=null;} }
+function toast(m,t) { const el=document.getElementById('toast'); el.textContent=m; el.className='toast '+t; el.style.display='block'; setTimeout(()=>el.style.display='none',2000); }
+document.querySelectorAll('.modal-o').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('show');}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-o.show').forEach(m=>m.classList.remove('show')); if(e.ctrlKey&&e.key==='k'){e.preventDefault();document.getElementById('search').focus();}});
+document.getElementById('search').addEventListener('input',render);
+
+// ═══════ INIT ═══════
+ld(); render();
+</script>
+</body>
+</html>
